@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ccq"
+version = "1.0.0"
+description = "Curvature-Conditioned Query for Linear Attention (arXiv:2606.01294)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+dependencies = [
+    "torch>=2.5",
+    "triton>=3.0",
+    "transformers>=4.45,<5.0.0",
+    "einops",
+    "flash-linear-attention>=0.4.2",
+]
+
+[tool.setuptools.packages.find]
+include = ["ccq*"]
