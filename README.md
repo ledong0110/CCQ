@@ -1,10 +1,13 @@
 # Don't Read Everything: A Curvature-Conditioned Query for Linear Attention
 
+[![EMNLP 2026](https://img.shields.io/badge/EMNLP%202026-Accepted-brightgreen)](https://arxiv.org/abs/2606.01294)
 [![arXiv](https://img.shields.io/badge/arXiv-PDF-red?logo=arxiv)](https://arxiv.org/abs/2606.01294)
 [![HuggingFace](https://img.shields.io/badge/HuggingFace-Paper-orange)](https://huggingface.co/papers/2606.01294)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## Overview
+
+**🎉 Accepted to EMNLP 2026!**
 
 This is the official repository for **[Don't Read Everything: A Curvature-Conditioned Query for Linear Attention](https://arxiv.org/abs/2606.01294)**.
 
@@ -26,6 +29,8 @@ q_clean_t = (I − λ_t Σ_t) q_t,      Σ_t = C̄_t − μ_t μ_tᵀ,      λ_t
 The write rule of the backbone is untouched, so CCQ slots onto any linear-attention variant at the cost of one extra d_k×d_k running statistic and one d_k vector per head.
 
 ## News
+
+- **[2026-08-30] 🎉 Our paper has been accepted to EMNLP 2026!**
 - [2026-06] Code released: model implementations, paper configs, and fused Triton kernels.
 - [2026-06] Paper available on [arXiv](https://arxiv.org/abs/2606.01294).
 
