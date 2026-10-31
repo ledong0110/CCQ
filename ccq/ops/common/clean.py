@@ -15,13 +15,17 @@ from fla.ops.simple_gla import chunk_simple_gla
 from fla.ops.gla.fused_recurrent import fused_recurrent_gla
 from fla.ops.utils.index import prepare_chunk_indices, prepare_chunk_offsets
 from fla.utils import (
-    USE_CUDA_GRAPH,
     autocast_custom_bwd,
     autocast_custom_fwd,
     autotune_cache_kwargs,
     check_shared_mem,
     input_guard,
 )
+
+try:  # fla < 0.5 exposes the flag publicly; newer releases dropped it (it only tunes autotuner capture)
+    from fla.utils import USE_CUDA_GRAPH
+except ImportError:  # pragma: no cover
+    USE_CUDA_GRAPH = False
 
 # ---------------------------------------------------------------------
 # Chunk-PARALLEL cleaning kernels.

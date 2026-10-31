@@ -17,6 +17,12 @@ from ccq.gdn.configuration import (
     CCQGDNConfig,
 )
 from fla.models.utils import Cache, FLAGenerationMixin
+
+from ccq.generation import CCQGenerationMixin
+
+import transformers as _transformers
+
+_TRANSFORMERS_5 = int(_transformers.__version__.split('.')[0]) >= 5
 from fla.modules import FusedCrossEntropyLoss, FusedLinearCrossEntropyLoss, RMSNorm
 from fla.modules import GatedMLP as GatedDeltaNetMLP
 from fla.modules.l2warp import l2_warp
@@ -281,11 +287,14 @@ class CCQGDNModel(CCQGDNPreTrainedModel):
 
 
 class CCQGDNForCausalLM(
+    CCQGenerationMixin,
     CCQGDNPreTrainedModel,
     FLAGenerationMixin,
 ):
 
-    _tied_weights_keys = ["lm_head.weight"]
+    # Transformers 5 expects a target -> source mapping; 4.x expects a list. Embeddings stay untied by
+    # default, so this is serialization metadata only.
+    _tied_weights_keys = ({'lm_head.weight': 'model.embeddings.weight'} if _TRANSFORMERS_5 else ['lm_head.weight'])
 
     def __init__(self, config):
         super().__init__(config)

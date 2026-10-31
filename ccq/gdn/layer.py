@@ -13,6 +13,7 @@ from fla.layers.utils import get_layer_cache, get_unpad_data, index_first_axis, 
 from fla.modules import FusedRMSNormGated, RMSNorm, ShortConvolution
 from ccq.ops.ccq_gdn import (
     chunk_ccq_gdn,
+    fused_chunk_ccq_gdn,
     fused_recurrent_ccq_gdn,
 )
 
@@ -165,7 +166,7 @@ class CCQGDN(nn.Module):
                 f"expand_v={expand_v} does not produce an integer value when multiplied by head_dim={head_dim}. "
                 f"Resulting head_v_dim would be {head_dim * expand_v}, which is invalid for FusedRMSNormGated.",
             )
-        assert mode in ['chunk', 'fused_recurrent'], f"Not supported mode `{mode}`."
+        assert mode in ['chunk', 'fused_chunk', 'fused_recurrent'], f"Not supported mode `{mode}`."
 
         self.q_proj = nn.Linear(hidden_size, self.key_dim, bias=False)
         self.k_proj = nn.Linear(hidden_size, self.kv_key_dim, bias=False)
@@ -253,7 +254,7 @@ class CCQGDN(nn.Module):
         # change to inference mode.
         mode = 'fused_recurrent' if (q_len <= 64 and not self.training) else self.mode
         if self.training:
-            assert mode == 'chunk', "Only chunk mode is supported in training."
+            assert mode in ('chunk', 'fused_chunk'), "Only chunk and fused_chunk modes are supported in training."
 
         last_state = get_layer_cache(self, past_key_values)
 
@@ -335,6 +336,24 @@ class CCQGDN(nn.Module):
             recurrent_state, cov_state, position_offset = None, None, 0
         if mode == 'chunk':
             o, recurrent_state, cov_state, mean_state = chunk_ccq_gdn(
+                q=q,
+                k=k,
+                v=v,
+                lambda_h=lambda_h,
+                g=g,
+                beta=beta,
+                initial_state=recurrent_state,
+                initial_cov_state=cov_state,
+                initial_mean_state=mean_state if self.subtract_mean else None,
+                output_final_state=use_cache,
+                cu_seqlens=cu_seqlens,
+                use_qk_l2norm_in_kernel=True,
+                position_offset=position_offset,
+                subtract_mean=self.subtract_mean,
+                enable_ccq=self.enable_ccq,
+            )
+        elif mode == 'fused_chunk':
+            o, recurrent_state, cov_state, mean_state = fused_chunk_ccq_gdn(
                 q=q,
                 k=k,
                 v=v,
