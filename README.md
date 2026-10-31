@@ -163,29 +163,52 @@ and are verified against a pure-PyTorch autograd reference.
 ### Compatibility
 
 The code now runs unchanged on **Transformers 5.x** and **flash-linear-attention 0.5.x** as well
-as on the versions the paper used (transformers 4.57, fla 0.4.2). Three fixes were needed; none
+as on the versions the paper used (transformers 4.57, fla 0.4.2). Three fixes were needed, and none of them
 changes the model mathematics, weights or checkpoints:
 
 1. **Generation / cache fix (important).** Transformers 5 passes a pre-allocated `DynamicCache`
    and no `cache_position` to the first decoding step. The fla ≤ 0.5.2 generation mixin slices the
    prompt from `len(cache)`, which is already positive for that empty cache, so `generate()` fed
    **only the last prompt token** and every greedy continuation was unconditional text (all
-   needle-in-a-haystack scores were 0 while teacher-forced and manual cached decoding were
-   correct). `ccq/generation.py` now slices by the number of tokens the recurrent cache has
-   actually seen; both model classes use it. **If you evaluated generation tasks with
+   needle-in-a-haystack scores were 0 even though the model itself was correct: scoring the
+   full prompt in one forward pass, or decoding with a hand-written cache loop, recovered the
+   needle). `ccq/generation.py` now slices by the number of tokens the recurrent cache has
+   actually seen, and both model classes use it. **If you evaluated generation tasks with
    Transformers 5 before this fix, re-run them.**
 2. `_tied_weights_keys` is a target→source mapping on Transformers 5 and a list on 4.x
-   (serialization metadata only; embeddings stay untied).
+   (serialization metadata only, embeddings stay untied).
 3. `USE_CUDA_GRAPH` is imported from `fla.utils` when present and defaults to `False` otherwise
-   (fla 0.5 removed the public symbol; it only affects Triton autotuner capture).
+   (fla 0.5 removed the public symbol, which only affects Triton autotuner capture).
 
 Verified with torch 2.13, triton 3.7.1, transformers 5.14.1, fla 0.5.2 on H200: training with the
-paper recipe, teacher-forced evaluation, `generate()` at batch 1 and batch 8 (identical outputs),
+paper recipe, the lm-eval accuracy tasks, `generate()` at batch 1 and batch 8 (identical outputs),
 and the fused `attn_mode: "fused_chunk"` kernels.
 
 ### Reproducing the paper numbers
 
-CCQ-GDN and GDN 500M re-trained and evaluated with the paper recipe (57,220 steps, 15B tokens) on the latest package versions: torch 2.13, triton 3.7.1, transformers 5.14.1, flash-linear-attention 0.5.2.
+To check that the code still reproduces the paper on current software, CCQ-GDN 500M and GDN 500M
+were re-trained from scratch and re-evaluated with torch 2.13, triton 3.7.1, transformers 5.14.1 and
+flash-linear-attention 0.5.2 on 8 x H200.
+
+**Training** follows the paper recipe exactly: configs `configs/ccq_gdn_500M.json` and
+`configs/gdn_500M.json`, 15B tokens of FineWeb-Edu 100BT (57,220 steps x 8 GPUs x 32,768 packed
+tokens), documents capped at 4,096 tokens, tokenizer `fla-hub/transformer-1.3B-100B`, AdamW
+(beta 0.9/0.95, weight decay 0.1), peak learning rate 1e-3 with 1,024 warmup steps and cosine decay
+to 0, gradient clipping 1.0, bf16 autocast. With flame this is:
+
+```bash
+bash train.sh \
+  --job.config_file flame/models/fla.toml \
+  --model.config /path/to/ccq/configs/ccq_gdn_500M.json \
+  --model.tokenizer_path fla-hub/transformer-1.3B-100B \
+  --training.dataset HuggingFaceFW/fineweb-edu --training.dataset_name sample-100BT \
+  --training.seq_len 32768 --training.context_len 4096 --training.varlen \
+  --training.batch_size 1 --training.steps 57220 --training.max_norm 1.0 \
+  --optimizer.name AdamW --optimizer.lr 1e-3 \
+  --lr_scheduler.warmup_steps 1024 --lr_scheduler.decay_type cosine --lr_scheduler.lr_min 0.0
+```
+
+**Evaluation** 
 
 | 500M | LMB acc | PIQA | Hella | Wino | ARC-e | ARC-c | SIQA | BoolQ | Avg acc |
 |---|---|---|---|---|---|---|---|---|---|
